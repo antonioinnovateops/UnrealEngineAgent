@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(git push --force*)"
+    ]
+  },
+  "ignorePatterns": [
+    "mcp-server/node_modules/**",
+    "mcp-server/dist/**"
+  ]
+}

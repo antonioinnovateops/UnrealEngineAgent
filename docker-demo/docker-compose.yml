@@ -1,0 +1,14 @@
+services:
+  ue5-mcp-server:
+    build:
+      context: ..
+      dockerfile: docker-demo/Dockerfile
+    container_name: ue5-mcp-server
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
