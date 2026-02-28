@@ -30,6 +30,11 @@ docker-demo/                  # Docker containerization
 ├── Dockerfile                # Multi-stage build for MCP server
 ├── docker-compose.yml        # Docker compose config
 └── test-mcp.sh              # Test suite
+ue5-x11-project/             # Full UE5 dev environment with X11
+├── Dockerfile.ue5-dev        # Ubuntu 24.04 + X11 + Vulkan + MCP
+├── docker-compose.yml        # GPU-accelerated compose stack
+├── launch.sh                 # One-command launcher (shell/editor/test-x11)
+└── install-ue5.sh           # Install UE5 engine inside container
 Plan.md                       # UE5 learning resources guide
 ```
 
@@ -74,3 +79,19 @@ To use the MCP server with Claude Code, add to `~/.claude/settings.json`:
   }
 }
 ```
+
+## UE5 X11 Development Environment
+
+Full UE5 editor in Docker with X11 forwarding to host display:
+
+```bash
+# Build and launch dev shell with GPU + X11
+cd ue5-x11-project
+./launch.sh              # Interactive shell (default)
+./launch.sh test-x11     # Test X11 with xeyes + vulkan
+./launch.sh editor       # Launch UE5 editor directly
+./launch.sh mcp          # Start MCP server only
+./launch.sh down         # Stop everything
+```
+
+Tested on: Ubuntu 24.04, NVIDIA RTX PRO 500 Blackwell, X11 `:1`, Vulkan 1.3.275.

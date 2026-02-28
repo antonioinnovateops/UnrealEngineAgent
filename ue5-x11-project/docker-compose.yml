@@ -1,0 +1,79 @@
+# UE5 Development Stack with X11 Forwarding
+# Run: ./launch.sh (handles xhost and env setup)
+
+services:
+  # Main UE5 development container with editor access
+  ue5-editor:
+    build:
+      context: ..
+      dockerfile: ue5-x11-project/Dockerfile.ue5-dev
+      args:
+        HOST_UID: ${HOST_UID:-1000}
+        HOST_GID: ${HOST_GID:-1000}
+    container_name: ue5-editor
+    hostname: ue5-dev
+    stdin_open: true
+    tty: true
+
+    # X11 forwarding
+    environment:
+      - DISPLAY=${DISPLAY:-:1}
+      - XAUTHORITY=/tmp/.Xauthority
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - PULSE_SERVER=unix:/run/user/${HOST_UID:-1000}/pulse/native
+
+    volumes:
+      # X11 socket for display
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      # Xauth for authentication
+      - ${XAUTHORITY:-/home/${USER}/.Xauthority}:/tmp/.Xauthority:ro
+      # GPU device access
+      - /dev/dri:/dev/dri
+      # PulseAudio for sound
+      - /run/user/${HOST_UID:-1000}/pulse:/run/user/${HOST_UID:-1000}/pulse:ro
+      # Persist UE5 engine installation across container restarts
+      - ue5-engine:/home/ue5dev/UnrealEngine
+      # Project workspace
+      - ue5-workspace:/home/ue5dev/Projects
+      # Shared downloads cache
+      - ue5-cache:/home/ue5dev/.cache
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu, compute, utility, video]
+
+    # Shared memory for GPU rendering
+    shm_size: "8g"
+
+    # Network for MCP communication
+    networks:
+      - ue5-net
+
+  # MCP Server as a sidecar (stdio, accessed via docker exec)
+  ue5-mcp:
+    build:
+      context: ..
+      dockerfile: docker-demo/Dockerfile
+    container_name: ue5-mcp
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+    networks:
+      - ue5-net
+
+volumes:
+  ue5-engine:
+    name: ue5-engine-data
+  ue5-workspace:
+    name: ue5-workspace
+  ue5-cache:
+    name: ue5-dev-cache
+
+networks:
+  ue5-net:
+    driver: bridge

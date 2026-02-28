@@ -1,0 +1,90 @@
+# UE5 Development Environment with X11, MCP Server, and Claude Code tools
+# This image provides a full UE5 editor accessible via X11 forwarding from host
+
+FROM ubuntu:24.04 AS base
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# System dependencies for UE5 + X11 + development tools
+RUN apt-get update && apt-get install -y \
+    # Build essentials
+    build-essential git git-lfs curl wget \
+    clang lld libclang-dev \
+    # X11 and display
+    x11-apps mesa-utils libgl1 libglu1-mesa \
+    libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev \
+    libxrender-dev libxfixes-dev libxext-dev \
+    # Audio (PulseAudio passthrough)
+    pulseaudio-utils libpulse0 \
+    # Vulkan
+    libvulkan1 libvulkan-dev vulkan-tools mesa-vulkan-drivers \
+    # Python + Node for tooling
+    python3 python3-pip python3-venv \
+    nodejs npm \
+    # Utilities
+    sudo jq htop nano tmux \
+    xterm x11-xserver-utils \
+    # .NET for UE build system
+    dotnet-sdk-8.0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create dev user matching host UID for seamless X11
+ARG HOST_UID=1000
+ARG HOST_GID=1000
+RUN existing_user=$(getent passwd ${HOST_UID} | cut -d: -f1) && \
+    if [ -n "$existing_user" ]; then \
+        usermod -l ue5dev -d /home/ue5dev -m "$existing_user" 2>/dev/null || true; \
+        groupmod -n ue5dev $(getent group ${HOST_GID} | cut -d: -f1) 2>/dev/null || true; \
+    else \
+        groupadd -g ${HOST_GID} ue5dev 2>/dev/null || true; \
+        useradd -m -u ${HOST_UID} -g ${HOST_GID} -s /bin/bash ue5dev; \
+    fi && \
+    echo "ue5dev ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Install MCP server
+COPY mcp-server/ /opt/ue5-mcp-server/
+WORKDIR /opt/ue5-mcp-server
+RUN npm install && npm run build && \
+    chown -R ue5dev:ue5dev /opt/ue5-mcp-server
+
+# Claude Code agents and skills
+COPY .claude/ /home/ue5dev/.claude/
+RUN chown -R ue5dev:ue5dev /home/ue5dev/.claude
+
+# Environment setup
+USER ue5dev
+WORKDIR /home/ue5dev
+
+# UE5 environment variables
+ENV DISPLAY=:1
+ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
+ENV UE5_MCP_SERVER=/opt/ue5-mcp-server/dist/index.js
+
+# Shell setup with aliases for UE5 dev workflow
+RUN echo '\n\
+# UE5 Development Environment\n\
+export PATH="$HOME/UnrealEngine/Engine/Binaries/Linux:$PATH"\n\
+export UE_ROOT="$HOME/UnrealEngine"\n\
+\n\
+# MCP Server alias\n\
+alias mcp-start="node /opt/ue5-mcp-server/dist/index.js"\n\
+\n\
+# UE5 build aliases\n\
+alias ue5-build="$UE_ROOT/Engine/Build/BatchFiles/Linux/Build.sh"\n\
+alias ue5-cook="$UE_ROOT/Engine/Build/BatchFiles/RunUAT.sh BuildCookRun"\n\
+alias ue5-editor="$UE_ROOT/Engine/Binaries/Linux/UnrealEditor"\n\
+alias ue5-insights="$UE_ROOT/Engine/Binaries/Linux/UnrealInsights"\n\
+\n\
+# GPU info\n\
+alias gpu-check="nvidia-smi --query-gpu=name,memory.used,memory.total,temperature.gpu --format=csv,noheader"\n\
+\n\
+echo ""\n\
+echo "=================================="\n\
+echo " UE5 Development Environment"\n\
+echo " X11 Display: $DISPLAY"\n\
+echo " MCP Server: $UE5_MCP_SERVER"\n\
+echo "=================================="\n\
+echo ""\n\
+' >> ~/.bashrc
+
+CMD ["/bin/bash"]
