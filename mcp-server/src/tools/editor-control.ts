@@ -942,4 +942,453 @@ export function registerEditorControlTools(server: McpServer) {
       }
     }
   );
+
+  // 12. ue5_console_command — Execute arbitrary console commands
+  server.registerTool(
+    "ue5_console_command",
+    {
+      title: "Execute UE5 Console Command",
+      description:
+        "Execute an arbitrary Unreal Engine console command. Useful for CVars (r.ShadowQuality, r.DynamicGlobalIlluminationMethod, sg.ShadowQuality), rendering settings, performance tuning, and any command you'd type in the ~ console.",
+      inputSchema: {
+        command: z.string().describe("Console command to execute (e.g., 'stat fps', 'r.ShadowQuality 3', 'highresshot 1920x1080')"),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async ({ command }) => {
+      try {
+        // KismetSystemLibrary::ExecuteConsoleCommand via the editor world
+        const res = await rcCall(
+          "/Script/Engine.Default__KismetSystemLibrary",
+          "ExecuteConsoleCommand",
+          {
+            WorldContextObject: "/Engine/Transient.EditorActorSubsystem",
+            Command: command,
+          }
+        );
+
+        if (!res.ok) {
+          return errorResult(`Console command failed (HTTP ${res.status}): ${JSON.stringify(res.data)}`);
+        }
+
+        return textResult(`Executed console command: \`${command}\``);
+      } catch (err: any) {
+        return errorResult(err.message);
+      }
+    }
+  );
+
+  // 13. ue5_set_camera — Set viewport camera position and rotation
+  server.registerTool(
+    "ue5_set_camera",
+    {
+      title: "Set UE5 Viewport Camera",
+      description:
+        "Set the editor viewport camera location and/or rotation. Useful for framing scenes, setting up overview angles, or jumping to specific positions.",
+      inputSchema: {
+        location: LocationSchema,
+        rotation: RotationSchema,
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async ({ location, rotation }) => {
+      try {
+        const params: Record<string, any> = {};
+        if (location) {
+          params.CameraLocation = { X: location.x, Y: location.y, Z: location.z };
+        }
+        if (rotation) {
+          params.CameraRotation = { Pitch: rotation.pitch, Yaw: rotation.yaw, Roll: rotation.roll };
+        }
+
+        if (!location && !rotation) {
+          return errorResult("Specify at least location or rotation.");
+        }
+
+        // If only one is provided, get the other from current state
+        if (!location || !rotation) {
+          const getRes = await rcCall(
+            "/Script/UnrealEd.Default__UnrealEditorSubsystem",
+            "GetLevelViewportCameraInfo",
+            {}
+          );
+          if (getRes.ok && getRes.data) {
+            if (!location && getRes.data.CameraLocation) {
+              params.CameraLocation = getRes.data.CameraLocation;
+            }
+            if (!rotation && getRes.data.CameraRotation) {
+              params.CameraRotation = getRes.data.CameraRotation;
+            }
+          }
+        }
+
+        const res = await rcCall(
+          "/Script/UnrealEd.Default__UnrealEditorSubsystem",
+          "SetLevelViewportCameraInfo",
+          params
+        );
+
+        if (!res.ok) {
+          return errorResult(`Set camera failed (HTTP ${res.status}): ${JSON.stringify(res.data)}`);
+        }
+
+        let output = "## Camera Updated\n\n";
+        if (location) output += `- **Location**: (${location.x}, ${location.y}, ${location.z})\n`;
+        if (rotation) output += `- **Rotation**: pitch=${rotation.pitch} yaw=${rotation.yaw} roll=${rotation.roll}\n`;
+        return textResult(output);
+      } catch (err: any) {
+        return errorResult(err.message);
+      }
+    }
+  );
+
+  // 14. ue5_get_camera — Get current viewport camera
+  server.registerTool(
+    "ue5_get_camera",
+    {
+      title: "Get UE5 Viewport Camera",
+      description: "Get the current editor viewport camera location and rotation.",
+      inputSchema: {},
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async () => {
+      try {
+        const res = await rcCall(
+          "/Script/UnrealEd.Default__UnrealEditorSubsystem",
+          "GetLevelViewportCameraInfo",
+          {}
+        );
+
+        if (!res.ok) {
+          return errorResult(`Get camera failed (HTTP ${res.status}): ${JSON.stringify(res.data)}`);
+        }
+
+        const loc = res.data?.CameraLocation || {};
+        const rot = res.data?.CameraRotation || {};
+
+        let output = "## Current Viewport Camera\n\n";
+        output += `- **Location**: X=${loc.X ?? 0} Y=${loc.Y ?? 0} Z=${loc.Z ?? 0}\n`;
+        output += `- **Rotation**: Pitch=${rot.Pitch ?? 0} Yaw=${rot.Yaw ?? 0} Roll=${rot.Roll ?? 0}\n`;
+        return textResult(output);
+      } catch (err: any) {
+        return errorResult(err.message);
+      }
+    }
+  );
+
+  // 15. ue5_spawn_light — Spawn typed lights with parameters
+  const LIGHT_CLASSES: Record<string, string> = {
+    PointLight: "/Script/Engine.PointLight",
+    SpotLight: "/Script/Engine.SpotLight",
+    DirectionalLight: "/Script/Engine.DirectionalLight",
+    RectLight: "/Script/Engine.RectLight",
+    SkyLight: "/Script/Engine.SkyLight",
+  };
+
+  server.registerTool(
+    "ue5_spawn_light",
+    {
+      title: "Spawn Light in UE5 Editor",
+      description:
+        `Spawn a light actor (${Object.keys(LIGHT_CLASSES).join(", ")}) with intensity, color, attenuation radius, and optional cone angles for spot lights.`,
+      inputSchema: {
+        light_type: z
+          .enum(Object.keys(LIGHT_CLASSES) as [string, ...string[]])
+          .describe("Type of light to spawn"),
+        location: LocationSchema,
+        rotation: RotationSchema,
+        label: z.string().optional().describe("Display label for the light"),
+        intensity: z.number().default(5000).describe("Light intensity (candelas for point/spot, lux for directional)"),
+        color: z
+          .object({
+            r: z.number().min(0).max(255).default(255),
+            g: z.number().min(0).max(255).default(255),
+            b: z.number().min(0).max(255).default(255),
+          })
+          .optional()
+          .describe("Light color RGB (0-255)"),
+        attenuation_radius: z.number().optional().describe("Attenuation radius (point/spot lights)"),
+        inner_cone_angle: z.number().optional().describe("Inner cone angle in degrees (spot lights only)"),
+        outer_cone_angle: z.number().optional().describe("Outer cone angle in degrees (spot lights only)"),
+        cast_shadows: z.boolean().default(true).describe("Whether the light casts shadows"),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async ({ light_type, location, rotation, label, intensity, color, attenuation_radius, inner_cone_angle, outer_cone_angle, cast_shadows }) => {
+      try {
+        const classPath = LIGHT_CLASSES[light_type];
+        const loc = location || { x: 0, y: 0, z: 300 };
+
+        // Spawn the light
+        const spawnRes = await rcCall(
+          "/Engine/Transient.EditorActorSubsystem",
+          "SpawnActorFromClass",
+          {
+            ActorClass: classPath,
+            Location: { X: loc.x, Y: loc.y, Z: loc.z },
+          }
+        );
+
+        if (!spawnRes.ok) {
+          return errorResult(`Spawn light failed (HTTP ${spawnRes.status}): ${JSON.stringify(spawnRes.data)}`);
+        }
+
+        const actorPath = spawnRes.data?.ReturnValue;
+        if (!actorPath) {
+          return errorResult(`Spawn returned no actor path.`);
+        }
+
+        const steps: string[] = [`Spawned ${light_type} → \`${actorPath}\``];
+
+        // Find the light component (it's always LightComponent0)
+        const lightComp = `${actorPath}.LightComponent0`;
+
+        // Set intensity
+        const intRes = await rcCall(lightComp, "SetIntensity", { NewIntensity: intensity });
+        if (intRes.ok) {
+          steps.push(`Intensity: ${intensity}`);
+        }
+
+        // Set color
+        if (color) {
+          const colRes = await rcCall(lightComp, "SetLightColor", {
+            NewLightColor: { R: color.r, G: color.g, B: color.b, A: 255 },
+          });
+          if (colRes.ok) {
+            steps.push(`Color: (${color.r}, ${color.g}, ${color.b})`);
+          }
+        }
+
+        // Set attenuation radius (point/spot/rect)
+        if (attenuation_radius && light_type !== "DirectionalLight" && light_type !== "SkyLight") {
+          const attRes = await rcCall(lightComp, "SetAttenuationRadius", { NewRadius: attenuation_radius });
+          if (attRes.ok) {
+            steps.push(`Attenuation radius: ${attenuation_radius}`);
+          }
+        }
+
+        // Spot light cone angles
+        if (light_type === "SpotLight") {
+          if (inner_cone_angle !== undefined) {
+            await rcCall(lightComp, "SetInnerConeAngle", { NewInnerConeAngle: inner_cone_angle });
+            steps.push(`Inner cone: ${inner_cone_angle}°`);
+          }
+          if (outer_cone_angle !== undefined) {
+            await rcCall(lightComp, "SetOuterConeAngle", { NewOuterConeAngle: outer_cone_angle });
+            steps.push(`Outer cone: ${outer_cone_angle}°`);
+          }
+        }
+
+        // Cast shadows
+        const shadowRes = await rcCall(lightComp, "SetCastShadows", { NewCastShadows: cast_shadows });
+        if (shadowRes.ok) {
+          steps.push(`Cast shadows: ${cast_shadows}`);
+        }
+
+        // Set rotation
+        if (rotation) {
+          await rcCall(actorPath, "K2_SetActorRotation", {
+            NewRotation: { Pitch: rotation.pitch, Yaw: rotation.yaw, Roll: rotation.roll },
+            bTeleportPhysics: true,
+          });
+          steps.push(`Rotation: pitch=${rotation.pitch} yaw=${rotation.yaw} roll=${rotation.roll}`);
+        }
+
+        // Set label
+        if (label) {
+          await rcCall(actorPath, "SetActorLabel", { NewActorLabel: label });
+          steps.push(`Label: "${label}"`);
+        }
+
+        let output = `## Light Spawned\n\n`;
+        output += `- **Path**: \`${actorPath}\`\n`;
+        output += steps.map((s) => `- ${s}`).join("\n");
+        return textResult(output);
+      } catch (err: any) {
+        return errorResult(err.message);
+      }
+    }
+  );
+
+  // 16. ue5_apply_force — Apply force/impulse to physics actors
+  server.registerTool(
+    "ue5_apply_force",
+    {
+      title: "Apply Force or Impulse to UE5 Actor",
+      description:
+        "Apply a physics force, impulse, or torque to an actor's mesh component. The actor must have physics simulation enabled.",
+      inputSchema: {
+        actor_path: z.string().describe("Full object path of the actor"),
+        mode: z
+          .enum(["force", "impulse", "velocity", "torque"])
+          .describe("force: continuous acceleration, impulse: instant kick, velocity: set directly, torque: rotational force"),
+        value: z.object({
+          x: z.number().default(0),
+          y: z.number().default(0),
+          z: z.number().default(0),
+        }).describe("Force/impulse/velocity/torque vector"),
+        component_name: z
+          .string()
+          .default("StaticMeshComponent0")
+          .describe("Physics component name"),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async ({ actor_path, mode, value, component_name }) => {
+      try {
+        const compPath = `${actor_path}.${component_name}`;
+        const vec = { X: value.x, Y: value.y, Z: value.z };
+
+        let functionName: string;
+        let parameters: Record<string, any>;
+
+        switch (mode) {
+          case "force":
+            functionName = "AddForce";
+            parameters = { Force: vec };
+            break;
+          case "impulse":
+            functionName = "AddImpulse";
+            parameters = { Impulse: vec };
+            break;
+          case "velocity":
+            functionName = "SetPhysicsLinearVelocity";
+            parameters = { NewVel: vec };
+            break;
+          case "torque":
+            functionName = "AddTorqueInDegrees";
+            parameters = { Torque: vec };
+            break;
+        }
+
+        const res = await rcCall(compPath, functionName, parameters);
+
+        if (!res.ok) {
+          return errorResult(`${mode} failed (HTTP ${res.status}): ${JSON.stringify(res.data)}`);
+        }
+
+        return textResult(
+          `Applied ${mode} to \`${compPath}\`: (${value.x}, ${value.y}, ${value.z})`
+        );
+      } catch (err: any) {
+        return errorResult(err.message);
+      }
+    }
+  );
+
+  // 17. ue5_create_dynamic_material — Create and configure dynamic material instance
+  server.registerTool(
+    "ue5_create_dynamic_material",
+    {
+      title: "Create Dynamic Material on UE5 Actor",
+      description:
+        "Create a dynamic material instance on an actor's mesh component and set scalar/vector parameters. Useful for runtime material changes like metallic, roughness, base color, emissive.",
+      inputSchema: {
+        actor_path: z.string().describe("Full object path of the actor"),
+        slot_index: z.number().default(0).describe("Material slot index"),
+        component_name: z
+          .string()
+          .default("StaticMeshComponent0")
+          .describe("Mesh component name"),
+        scalar_params: z
+          .record(z.number())
+          .optional()
+          .describe("Scalar parameters as {name: value} (e.g., {Metallic: 1.0, Roughness: 0.2})"),
+        vector_params: z
+          .record(
+            z.object({
+              r: z.number(), g: z.number(), b: z.number(), a: z.number().default(1),
+            })
+          )
+          .optional()
+          .describe("Vector/color parameters as {name: {r, g, b, a}} (e.g., {BaseColor: {r: 1, g: 0.8, b: 0.3, a: 1}})"),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async ({ actor_path, slot_index, component_name, scalar_params, vector_params }) => {
+      try {
+        const compPath = `${actor_path}.${component_name}`;
+
+        // Create the dynamic material instance
+        const createRes = await rcCall(compPath, "CreateDynamicMaterialInstance", {
+          ElementIndex: slot_index,
+        });
+
+        if (!createRes.ok) {
+          return errorResult(
+            `CreateDynamicMaterialInstance failed (HTTP ${createRes.status}): ${JSON.stringify(createRes.data)}`
+          );
+        }
+
+        const matPath = createRes.data?.ReturnValue;
+        if (!matPath) {
+          return errorResult("No material instance path returned.");
+        }
+
+        const steps: string[] = [`Created dynamic material: \`${matPath}\``];
+
+        // Set scalar parameters
+        if (scalar_params) {
+          for (const [name, value] of Object.entries(scalar_params)) {
+            const res = await rcCall(matPath, "SetScalarParameterValue", {
+              ParameterName: name,
+              Value: value,
+            });
+            steps.push(res.ok ? `${name} = ${value}` : `Warning: ${name} failed (${res.status})`);
+          }
+        }
+
+        // Set vector parameters
+        if (vector_params) {
+          for (const [name, value] of Object.entries(vector_params)) {
+            const res = await rcCall(matPath, "SetVectorParameterValue", {
+              ParameterName: name,
+              Value: { R: value.r, G: value.g, B: value.b, A: value.a },
+            });
+            steps.push(res.ok
+              ? `${name} = (${value.r}, ${value.g}, ${value.b}, ${value.a})`
+              : `Warning: ${name} failed (${res.status})`);
+          }
+        }
+
+        let output = `## Dynamic Material Created\n\n`;
+        output += `- **Actor**: \`${actor_path}\`\n`;
+        output += `- **Material**: \`${matPath}\`\n`;
+        output += steps.map((s) => `- ${s}`).join("\n");
+        return textResult(output);
+      } catch (err: any) {
+        return errorResult(err.message);
+      }
+    }
+  );
 }
