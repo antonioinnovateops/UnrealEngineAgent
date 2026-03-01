@@ -347,6 +347,96 @@ public:
 };
 ```
 
+### AnimInstance (Animation Blueprint Base)
+
+```cpp
+// MyAnimInstance.h
+#pragma once
+#include "CoreMinimal.h"
+#include "Animation/AnimInstance.h"
+#include "MyAnimInstance.generated.h"
+
+UCLASS()
+class MODULENAME_API UMyAnimInstance : public UAnimInstance
+{
+    GENERATED_BODY()
+
+public:
+    virtual void NativeInitializeAnimation() override;
+    virtual void NativeUpdateAnimation(float DeltaSeconds) override;
+
+protected:
+    UPROPERTY(BlueprintReadOnly, Category = "Movement")
+    float Speed = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Movement")
+    float Direction = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Movement")
+    bool bIsInAir = false;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Movement")
+    bool bIsAccelerating = false;
+};
+```
+
+```cpp
+// MyAnimInstance.cpp
+#include "MyAnimInstance.h"
+#include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "KismetAnimationLibrary.h"
+
+void UMyAnimInstance::NativeInitializeAnimation()
+{
+    Super::NativeInitializeAnimation();
+}
+
+void UMyAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
+{
+    Super::NativeUpdateAnimation(DeltaSeconds);
+
+    if (APawn* Pawn = TryGetPawnOwner())
+    {
+        FVector Velocity = Pawn->GetVelocity();
+        Speed = Velocity.Size2D();
+        Direction = UKismetAnimationLibrary::CalculateDirection(Velocity, Pawn->GetActorRotation());
+
+        if (ACharacter* Character = Cast<ACharacter>(Pawn))
+        {
+            bIsInAir = Character->GetCharacterMovement()->IsFalling();
+            bIsAccelerating = Character->GetCharacterMovement()->GetCurrentAcceleration().Size() > 0.0f;
+        }
+    }
+}
+```
+
+### BlueprintFunctionLibrary (Static Utility Functions)
+
+```cpp
+// MyBlueprintFunctionLibrary.h
+#pragma once
+#include "CoreMinimal.h"
+#include "Kismet/BlueprintFunctionLibrary.h"
+#include "MyBlueprintFunctionLibrary.generated.h"
+
+UCLASS()
+class MODULENAME_API UMyBlueprintFunctionLibrary : public UBlueprintFunctionLibrary
+{
+    GENERATED_BODY()
+
+public:
+    UFUNCTION(BlueprintCallable, Category = "Utilities", meta = (WorldContext = "WorldContextObject"))
+    static AActor* FindClosestActorOfClass(const UObject* WorldContextObject, TSubclassOf<AActor> ActorClass, FVector Origin, float MaxDistance = 5000.0f);
+
+    UFUNCTION(BlueprintPure, Category = "Math")
+    static FVector GetRandomPointInRadius(FVector Origin, float Radius);
+
+    UFUNCTION(BlueprintCallable, Category = "Utilities")
+    static FString FormatTime(float TimeInSeconds);
+};
+```
+
 ## Generation Rules
 
 1. **Replace `MODULENAME`** with the actual module name in uppercase (e.g., `MYPROJECT_API`)

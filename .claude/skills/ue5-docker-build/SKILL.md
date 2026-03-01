@@ -129,6 +129,64 @@ docker run --rm -p 7777:7777/udp ${PROJECT_NAME}-server:latest
 docker run --rm --gpus all -p 80:80 ${PROJECT_NAME}-streaming:latest
 ```
 
+### Step 7: MCP Server Integration (Optional)
+
+If the user wants Claude Code to control the containerized UE5 editor, add MCP server services:
+
+```yaml
+services:
+  ue5-editor:
+    image: ghcr.io/epicgames/unreal-engine:dev-slim-5.7
+    ports:
+      - "127.0.0.1:6766:6766/tcp"   # Remote Control HTTP
+      - "127.0.0.1:6767:6767/tcp"   # Remote Control WebSocket
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ${XAUTHORITY}:/tmp/.Xauthority:ro
+      # NVIDIA Vulkan libraries (nvidia-container-toolkit doesn't inject these)
+      - /usr/share/vulkan/icd.d/nvidia_icd.json:/usr/share/vulkan/icd.d/nvidia_icd.json:ro
+      - /usr/lib/x86_64-linux-gnu/libGLX_nvidia.so.0:/usr/lib/x86_64-linux-gnu/libGLX_nvidia.so.0:ro
+      - /usr/lib/x86_64-linux-gnu/libnvidia-glcore.so.${NVIDIA_DRIVER_VERSION}:/usr/lib/x86_64-linux-gnu/libnvidia-glcore.so.${NVIDIA_DRIVER_VERSION}:ro
+      - /usr/lib/x86_64-linux-gnu/libnvidia-glvkspirv.so.${NVIDIA_DRIVER_VERSION}:/usr/lib/x86_64-linux-gnu/libnvidia-glvkspirv.so.${NVIDIA_DRIVER_VERSION}:ro
+      - /usr/lib/x86_64-linux-gnu/libnvidia-gpucomp.so.${NVIDIA_DRIVER_VERSION}:/usr/lib/x86_64-linux-gnu/libnvidia-gpucomp.so.${NVIDIA_DRIVER_VERSION}:ro
+      - /usr/lib/x86_64-linux-gnu/libnvidia-glsi.so.${NVIDIA_DRIVER_VERSION}:/usr/lib/x86_64-linux-gnu/libnvidia-glsi.so.${NVIDIA_DRIVER_VERSION}:ro
+      - /usr/lib/x86_64-linux-gnu/libnvidia-tls.so.${NVIDIA_DRIVER_VERSION}:/usr/lib/x86_64-linux-gnu/libnvidia-tls.so.${NVIDIA_DRIVER_VERSION}:ro
+    environment:
+      - DISPLAY=${DISPLAY}
+      - XAUTHORITY=/tmp/.Xauthority
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  ue-mcp-server:
+    image: mcp/unreal-engine-mcp-server:latest
+    environment:
+      - UE_HOST=ue5-editor
+      - UE_RC_HTTP_PORT=6766
+      - UE_RC_WS_PORT=6767
+    depends_on:
+      - ue5-editor
+```
+
+Host-side setup before launching: `xhost +local:docker`
+
+Detect NVIDIA driver version dynamically:
+```bash
+export NVIDIA_DRIVER_VERSION=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -1)
+```
+
+### Security Best Practices
+
+- Bind MCP ports to localhost only: `127.0.0.1:6766:6766`
+- Set `MCP_AUTOMATION_ALLOW_NON_LOOPBACK=false` (default)
+- Use read-only content volumes: `./Content:/project/Content:ro`
+- Private Docker network with custom subnet for multi-service stacks
+- UFW firewall: `sudo ufw allow from 127.0.0.1 to any port 6766`
+
 ## Important Notes
 
 - **GHCR Access**: Requires GitHub account linked to Epic Games account with `read:packages` PAT
@@ -136,6 +194,7 @@ docker run --rm --gpus all -p 80:80 ${PROJECT_NAME}-streaming:latest
 - **GPU**: Only available at runtime, NOT during `docker build`
 - **Image Sizes**: dev-slim ~35 GB, runtime ~2 GB — always use multi-stage builds
 - **Performance**: Containers add <0.5ms to frame time (~110 FPS median)
+- **Vulkan in Docker**: nvidia-container-toolkit injects CUDA but NOT Vulkan rendering libraries — bind-mount from host
 
 ## Reference Files
 

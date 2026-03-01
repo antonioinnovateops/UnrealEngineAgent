@@ -263,14 +263,93 @@ docker run --rm --gpus all nvidia/cuda:12.0-base nvidia-smi
 | Shader compilation timeout | Increase Docker build timeout, pre-compile shaders |
 | Large image sizes | Use multi-stage builds, distroless base for runtime |
 
+## MCP Server Docker Integration
+
+Three MCP server architectures can run alongside UE5 in Docker:
+
+| Server | Protocol | Port | Best For |
+|--------|----------|------|----------|
+| Official (Remote Control API) | HTTP/WS | 6766/6767 | Non-intrusive automation |
+| ChiR24 (Automation Bridge) | TCP | 8091 | High-performance workflows |
+| Flopperam (World Building) | TCP | 6776 | AI-driven world generation |
+
+### MCP Docker Compose Pattern
+```yaml
+services:
+  ue5-editor:
+    image: ghcr.io/epicgames/unreal-engine:dev-slim-5.7.0
+    ports:
+      - "6766:6766/tcp"   # Remote Control HTTP
+      - "6767:6767/tcp"   # Remote Control WebSocket
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  ue-mcp-server:
+    image: mcp/unreal-engine-mcp-server:latest
+    environment:
+      - UE_HOST=ue5-editor
+      - UE_RC_HTTP_PORT=6766
+      - UE_RC_WS_PORT=6767
+    networks:
+      - ue5-net
+```
+
+### X11 Forwarding for Containerized Editor
+```yaml
+volumes:
+  - /tmp/.X11-unix:/tmp/.X11-unix:rw
+  - ${XAUTHORITY}:/tmp/.Xauthority:ro
+environment:
+  - DISPLAY=${DISPLAY}
+  - XAUTHORITY=/tmp/.Xauthority
+```
+Host-side: `xhost +local:docker`
+
+### NVIDIA Vulkan GPU Passthrough
+nvidia-container-toolkit injects CUDA but NOT Vulkan. Bind-mount from host:
+```yaml
+volumes:
+  - /usr/share/vulkan/icd.d/nvidia_icd.json:/usr/share/vulkan/icd.d/nvidia_icd.json:ro
+  - /usr/share/vulkan/implicit_layer.d:/usr/share/vulkan/implicit_layer.d:ro
+  - /usr/lib/x86_64-linux-gnu/libGLX_nvidia.so.0:...:ro
+  - /usr/lib/x86_64-linux-gnu/libnvidia-glcore.so.${NVIDIA_DRIVER_VERSION}:...:ro
+  - /usr/lib/x86_64-linux-gnu/libnvidia-glvkspirv.so.${NVIDIA_DRIVER_VERSION}:...:ro
+  - /usr/lib/x86_64-linux-gnu/libnvidia-gpucomp.so.${NVIDIA_DRIVER_VERSION}:...:ro
+  - /usr/lib/x86_64-linux-gnu/libnvidia-glsi.so.${NVIDIA_DRIVER_VERSION}:...:ro
+  - /usr/lib/x86_64-linux-gnu/libnvidia-tls.so.${NVIDIA_DRIVER_VERSION}:...:ro
+```
+
+### Security
+- `MCP_AUTOMATION_ALLOW_NON_LOOPBACK=false` (default)
+- Use private Docker network with custom subnet
+- Bind ports to localhost: `127.0.0.1:6766:6766`
+- Read-only content volumes: `./Content:/project/Content:ro`
+- UFW firewall: `sudo ufw allow from 192.168.1.0/24 to any port 6766`
+
+### Performance Benchmarks (Linux Docker)
+| Metric | Native | Host Network | Bridge |
+|--------|--------|-------------|--------|
+| Compilation | Baseline | +5-10% | +15-25% |
+| PIE Startup | ~2-3s | ~2-4s | ~3-5s |
+| MCP Latency | N/A | <1ms | 1-3ms |
+
+Optimizations: `--network host`, `--tmpfs /project:rw,size=20gb`, `ccache`, `shm_size: "8g"`
+
 ## Agent Behavior
 
 When invoked, this agent will:
 
-1. **Assess the deployment target** — Server, client, pixel streaming, or CI/CD
+1. **Assess the deployment target** — Server, client, pixel streaming, MCP server, or CI/CD
 2. **Select appropriate base image** — dev-slim for builds, runtime for deployment
 3. **Generate Dockerfiles** — Multi-stage with proper layer caching
-4. **Configure GPU** — NVIDIA Container Toolkit setup if rendering is needed
-5. **Create compose files** — For multi-service deployments
-6. **Provide CI/CD templates** — GitHub Actions or GitLab CI integration
-7. **Verify builds** — Test container startup and connectivity
+4. **Configure GPU** — NVIDIA Container Toolkit + Vulkan library bind-mounts
+5. **Create compose files** — For multi-service deployments including MCP servers
+6. **Set up X11 forwarding** — For containerized editor access
+7. **Configure security** — Private networks, firewall rules, read-only volumes
+8. **Provide CI/CD templates** — GitHub Actions or GitLab CI integration
+9. **Verify builds** — Test container startup, GPU, Vulkan, and MCP connectivity

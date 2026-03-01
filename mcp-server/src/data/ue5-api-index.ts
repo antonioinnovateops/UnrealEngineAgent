@@ -323,6 +323,82 @@ export const UE5_CLASSES: UE5ClassInfo[] = [
     headerPath: "NiagaraComponent.h",
     category: "Rendering",
   },
+
+  // Animation
+  {
+    name: "UAnimInstance",
+    module: "Engine",
+    parent: "UObject",
+    description: "Base class for Animation Blueprints. Override NativeUpdateAnimation for custom logic.",
+    headerPath: "Animation/AnimInstance.h",
+    category: "Animation",
+  },
+  {
+    name: "UAnimMontage",
+    module: "Engine",
+    parent: "UAnimCompositeBase",
+    description: "Composite animation asset with sections, notifies, and branching points. Used for attacks, abilities.",
+    headerPath: "Animation/AnimMontage.h",
+    category: "Animation",
+  },
+
+  // Materials (extended)
+  {
+    name: "UMaterial",
+    module: "Engine",
+    parent: "UMaterialInterface",
+    description: "Material asset with shader graph. Defines surface properties, blend mode, shading model.",
+    headerPath: "Materials/Material.h",
+    category: "Rendering",
+  },
+  {
+    name: "UMaterialInstanceDynamic",
+    module: "Engine",
+    parent: "UMaterialInstance",
+    description: "Runtime-modifiable material instance. Set scalar, vector, and texture parameters at runtime.",
+    headerPath: "Materials/MaterialInstanceDynamic.h",
+    category: "Rendering",
+  },
+
+  // Networking
+  {
+    name: "UGameplayStatics",
+    module: "Engine",
+    parent: "UBlueprintFunctionLibrary",
+    description: "Static utility functions: SpawnActor, GetPlayerController, OpenLevel, ApplyDamage, and more.",
+    headerPath: "Kismet/GameplayStatics.h",
+    category: "Framework",
+  },
+
+  // Level Streaming
+  {
+    name: "ULevelStreamingDynamic",
+    module: "Engine",
+    parent: "ULevelStreaming",
+    description: "Dynamically load/unload levels at runtime. Used for streaming sub-levels and World Partition.",
+    headerPath: "Engine/LevelStreamingDynamic.h",
+    category: "Framework",
+  },
+
+  // AI Perception
+  {
+    name: "UAIPerceptionComponent",
+    module: "AIModule",
+    parent: "UActorComponent",
+    description: "AI perception with configurable senses: sight, hearing, damage, touch, team, prediction.",
+    headerPath: "Perception/AIPerceptionComponent.h",
+    category: "AI",
+  },
+
+  // Sequencer
+  {
+    name: "ULevelSequence",
+    module: "LevelSequence",
+    parent: "UMovieSceneSequence",
+    description: "Cinematic sequence asset. Controls actors, cameras, animations, audio over time.",
+    headerPath: "LevelSequence.h",
+    category: "Rendering",
+  },
 ];
 
 export const UE5_CATEGORIES = [
@@ -334,6 +410,7 @@ export const UE5_CATEGORIES = [
   "UI",
   "Subsystems",
   "Rendering",
+  "Animation",
 ] as const;
 
 export type UE5Category = (typeof UE5_CATEGORIES)[number];

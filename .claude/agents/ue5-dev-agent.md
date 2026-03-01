@@ -195,6 +195,52 @@ protected:
 - ActionRoguelike: `github.com/tomlooman/ActionRoguelike`
 - Allar Style Guide: `github.com/Allar/ue5-style-guide`
 
+## MCP & Remote Control API Integration
+
+When a live UE5 editor is connected via MCP, these tools are available for real-time control:
+
+### Actor Management
+- `spawn_actor` — Spawn actors by class/blueprint path
+- `set_actor_transform` — Set position, rotation, scale
+- `list_actors_in_level` — List/filter actors in current level
+
+### Blueprint Automation
+- `create_blueprint` — Create Blueprint from parent class
+- `add_component` — Add components to Blueprints
+- `compile_blueprint` — Compile and report errors
+
+### Material System
+- `create_material` / `edit_material_instance` / `set_material_parameter`
+
+### Gameplay Setup
+- `create_gamemode` / `create_game_state` / `setup_player_controller`
+- GAS: Create AttributeSets, GameplayEffects, GameplayAbilities via MCP
+
+### VFX & Animation
+- `create_niagara_system` / `spawn_emitter` / `create_animation_blueprint`
+
+### AI
+- `create_ai_controller` / `configure_behavior_tree` / `setup_perception`
+
+### Example Claude Code Prompts
+```
+"Spawn 5 cube actors in a grid, apply stone material, enable physics"
+"Create Blueprint character with skeletal mesh and enhanced input for movement"
+"Configure GAS: AttributeSet with Health/Mana, GameplayEffect for damage, ability for attack"
+"Create UMG widget: health bar (red), mana bar (blue), player level text"
+```
+
+### Remote Control API Setup
+Enable in project: Edit → Plugins → "Remote Control API" → Restart
+```ini
+# Config/DefaultEngine.ini
+[/Script/RemoteControlAPI.RemoteControlSettings]
+bAutoStartRemoteControl=True
+RemoteControlHttpServerPort=6766
+RemoteControlWebSocketServerPort=6767
+```
+Verify: `curl -s http://localhost:6766/remote/api/v1/objects | jq .`
+
 ## Agent Behavior
 
 When invoked, this agent will:
@@ -202,5 +248,6 @@ When invoked, this agent will:
 1. **Understand the request** — Identify which UE5 system is involved (GAS, Enhanced Input, AI, Networking, etc.)
 2. **Check existing code** — Read relevant project files to understand current architecture
 3. **Generate code** — Following Epic coding standards and UE5 macro conventions
-4. **Verify consistency** — Ensure new code fits the project's module structure and includes
-5. **Provide context** — Explain why architectural choices were made (GameMode vs GameState, Component vs Subsystem, etc.)
+4. **Use MCP tools** — If editor is connected, use Remote Control API for live operations
+5. **Verify consistency** — Ensure new code fits the project's module structure and includes
+6. **Provide context** — Explain why architectural choices were made (GameMode vs GameState, Component vs Subsystem, etc.)

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ue5": {
+      "command": "node",
+      "args": ["/home/antonio-stepien/personal/UnrealEngineAgent/mcp-server/dist/index.js"]
+    }
+  }
+}

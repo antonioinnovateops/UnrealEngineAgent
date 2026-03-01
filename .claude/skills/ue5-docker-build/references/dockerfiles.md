@@ -5,8 +5,9 @@
 2. [Pixel Streaming Client](#pixel-streaming-client)
 3. [CI/CD Build Agent](#cicd-build-agent)
 4. [Development Environment](#development-environment)
-5. [GitHub Actions Workflow](#github-actions-workflow)
-6. [GitLab CI Pipeline](#gitlab-ci-pipeline)
+5. [MCP Editor with Remote Control](#mcp-editor-with-remote-control)
+6. [GitHub Actions Workflow](#github-actions-workflow)
+7. [GitLab CI Pipeline](#gitlab-ci-pipeline)
 
 ---
 
@@ -144,6 +145,69 @@ CMD Xvfb :1 -screen 0 1920x1080x24 & \
     x11vnc -display :1 -nopw -forever & \
     /home/ue4/UnrealEngine/Engine/Binaries/Linux/UnrealEditor
 ```
+
+---
+
+## MCP Editor with Remote Control
+
+Docker Compose for UE5 editor with MCP server for Claude Code integration.
+
+```yaml
+# docker-compose.mcp.yml
+services:
+  ue5-editor:
+    image: ghcr.io/epicgames/unreal-engine:dev-5.7
+    ports:
+      - "127.0.0.1:6766:6766/tcp"   # Remote Control HTTP
+      - "127.0.0.1:6767:6767/tcp"   # Remote Control WebSocket
+    volumes:
+      # Project files
+      - ./project:/tmp/project
+      # X11 forwarding
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ${XAUTHORITY}:/tmp/.Xauthority:ro
+      # NVIDIA Vulkan (nvidia-container-toolkit doesn't inject these)
+      - /usr/share/vulkan/icd.d/nvidia_icd.json:/usr/share/vulkan/icd.d/nvidia_icd.json:ro
+      - /usr/share/vulkan/implicit_layer.d:/usr/share/vulkan/implicit_layer.d:ro
+      - /usr/lib/x86_64-linux-gnu/libGLX_nvidia.so.0:/usr/lib/x86_64-linux-gnu/libGLX_nvidia.so.0:ro
+      - /usr/lib/x86_64-linux-gnu/libnvidia-glcore.so.${NVIDIA_DRIVER_VERSION}:/usr/lib/x86_64-linux-gnu/libnvidia-glcore.so.${NVIDIA_DRIVER_VERSION}:ro
+      - /usr/lib/x86_64-linux-gnu/libnvidia-glvkspirv.so.${NVIDIA_DRIVER_VERSION}:/usr/lib/x86_64-linux-gnu/libnvidia-glvkspirv.so.${NVIDIA_DRIVER_VERSION}:ro
+      - /usr/lib/x86_64-linux-gnu/libnvidia-gpucomp.so.${NVIDIA_DRIVER_VERSION}:/usr/lib/x86_64-linux-gnu/libnvidia-gpucomp.so.${NVIDIA_DRIVER_VERSION}:ro
+      - /usr/lib/x86_64-linux-gnu/libnvidia-glsi.so.${NVIDIA_DRIVER_VERSION}:/usr/lib/x86_64-linux-gnu/libnvidia-glsi.so.${NVIDIA_DRIVER_VERSION}:ro
+      - /usr/lib/x86_64-linux-gnu/libnvidia-tls.so.${NVIDIA_DRIVER_VERSION}:/usr/lib/x86_64-linux-gnu/libnvidia-tls.so.${NVIDIA_DRIVER_VERSION}:ro
+    environment:
+      - DISPLAY=${DISPLAY}
+      - XAUTHORITY=/tmp/.Xauthority
+      - XDG_RUNTIME_DIR=/tmp/runtime-user
+      - DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    shm_size: "8g"
+    command: >
+      /home/ue4/UnrealEngine/Engine/Binaries/Linux/UnrealEditor
+      /tmp/project/MyProject.uproject
+
+  ue-mcp-server:
+    image: mcp/unreal-engine-mcp-server:latest
+    environment:
+      - UE_HOST=ue5-editor
+      - UE_RC_HTTP_PORT=6766
+      - UE_RC_WS_PORT=6767
+      - MCP_AUTOMATION_ALLOW_NON_LOOPBACK=false
+    depends_on:
+      - ue5-editor
+    networks:
+      - default
+```
+
+**Setup**: Run `xhost +local:docker` and `export NVIDIA_DRIVER_VERSION=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -1)` on the host before launching.
+
+**Verify**: `curl -s http://localhost:6766/remote/api/v1/objects | jq .`
 
 ---
 

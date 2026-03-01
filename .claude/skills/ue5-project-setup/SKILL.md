@@ -14,6 +14,8 @@ Scaffolds a production-ready Unreal Engine 5 project with all the tooling, conve
 3. **.gitattributes** — Git LFS tracking for binary assets
 4. **Directory structure guidance** — Module and plugin organization
 5. **.claude/settings.json** — Exclude noisy directories from Claude context
+6. **.mcp.json** — MCP server configuration for live editor control
+7. **Config/DefaultEngine.ini entries** — Remote Control API auto-start
 
 ## Step 1: Gather Project Info
 
@@ -189,13 +191,51 @@ Adjust based on whether the user wants to track Content in Git or use a separate
 }
 ```
 
-## Step 6: Initialize Git Repository
+## Step 6: Generate .mcp.json for MCP Server Integration
+
+If the user wants Claude Code to control the UE5 editor (spawn actors, create materials, compile blueprints), generate `.mcp.json` at the project root:
+
+```json
+{
+  "mcpServers": {
+    "ue5": {
+      "command": "node",
+      "args": ["/path/to/UnrealEngineAgent/mcp-server/dist/index.js"]
+    }
+  }
+}
+```
+
+**Note**: MCP servers are configured in `.mcp.json`, NOT in `~/.claude/settings.json` (which doesn't support `mcpServers`).
+
+### Remote Control API Setup
+
+Add to the CLAUDE.md template if the user wants MCP integration:
+
+```markdown
+## Remote Control API
+- Plugin: Remote Control API (must be enabled in Edit → Plugins)
+- HTTP: http://localhost:6766
+- WebSocket: ws://localhost:6767
+- Test: `curl -s http://localhost:6766/remote/api/v1/objects | jq .`
+```
+
+Add to `Config/DefaultEngine.ini`:
+
+```ini
+[/Script/RemoteControlAPI.RemoteControlSettings]
+bAutoStartRemoteControl=True
+RemoteControlHttpServerPort=6766
+RemoteControlWebSocketServerPort=6767
+```
+
+## Step 8: Initialize Git Repository
 
 ```bash
 cd /path/to/project
 git init
 git lfs install
-git add .gitignore .gitattributes CLAUDE.md .claude/
+git add .gitignore .gitattributes CLAUDE.md .claude/ .mcp.json
 git commit -m "Initial project setup with UE5 conventions"
 ```
 

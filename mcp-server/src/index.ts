@@ -4,10 +4,11 @@ import { registerDocTools } from "./tools/documentation.js";
 import { registerProjectTools } from "./tools/project.js";
 import { registerLearningTools } from "./tools/learning.js";
 import { registerCppTools } from "./tools/cpp.js";
+import { registerRemoteControlTools } from "./tools/remote-control.js";
 
 const server = new McpServer({
   name: "ue5-mcp-server",
-  version: "1.0.0",
+  version: "1.1.0",
 });
 
 // Register all tool groups
@@ -15,6 +16,7 @@ registerDocTools(server);
 registerProjectTools(server);
 registerLearningTools(server);
 registerCppTools(server);
+registerRemoteControlTools(server);
 
 // Start server with stdio transport
 async function main() {

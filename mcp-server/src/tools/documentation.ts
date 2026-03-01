@@ -23,6 +23,7 @@ export function registerDocTools(server: McpServer) {
             "UI",
             "Subsystems",
             "Rendering",
+            "Animation",
             "all",
           ])
           .optional()
@@ -262,6 +263,12 @@ export function registerDocTools(server: McpServer) {
         "chaos": `${DOC_BASE}/chaos-physics-in-unreal-engine`,
         "metasounds": `${DOC_BASE}/metasounds-in-unreal-engine`,
         "pixel streaming": `${DOC_BASE}/pixel-streaming-in-unreal-engine`,
+        "remote control": `${DOC_BASE}/remote-control-api-for-unreal-engine`,
+        "remote control api": `${DOC_BASE}/remote-control-api-for-unreal-engine`,
+        "mcp": `${DOC_BASE}/remote-control-api-for-unreal-engine`,
+        "sequencer": `${DOC_BASE}/cinematics-and-movie-making-in-unreal-engine`,
+        "level streaming": `${DOC_BASE}/level-streaming-in-unreal-engine`,
+        "substrate": `${DOC_BASE}/substrate-in-unreal-engine`,
         "api": `${DOC_BASE}/API`,
         "blueprint api": `${DOC_BASE}/BlueprintAPI`,
       };

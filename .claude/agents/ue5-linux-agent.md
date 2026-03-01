@@ -219,6 +219,57 @@ export MESA_VK_WSI_PRESENT_MODE=immediate  # For AMD/Mesa
 - The Science of Code: `thescienceofcode.com/unreal-5-linux/`
 - Tom Looman Performance: `tomlooman.com/unreal-engine-5-6-performance-highlights/`
 
+## Remote Control API on Linux
+
+### Enable Plugin
+Edit → Plugins → "Remote Control API" → Enable → Restart Editor
+
+### Configure Auto-Start
+```ini
+# Config/DefaultEngine.ini
+[/Script/RemoteControlAPI.RemoteControlSettings]
+bAutoStartRemoteControl=True
+RemoteControlHttpServerPort=6766
+RemoteControlWebSocketServerPort=6767
+```
+
+### Verify Connection
+```bash
+curl -s http://localhost:6766/remote/api/v1/objects | jq .
+```
+
+### Firewall (UFW)
+```bash
+sudo ufw allow from 127.0.0.1 to any port 6766
+sudo ufw allow from 127.0.0.1 to any port 6767
+```
+
+## X11 Forwarding for Docker Containers
+
+```bash
+# Host-side setup
+xhost +local:docker
+export DISPLAY=:1  # or :0
+
+# Docker compose mounts
+volumes:
+  - /tmp/.X11-unix:/tmp/.X11-unix:rw
+  - ${XAUTHORITY}:/tmp/.Xauthority:ro
+environment:
+  - DISPLAY=${DISPLAY}
+  - XAUTHORITY=/tmp/.Xauthority
+  - XDG_RUNTIME_DIR=/tmp/runtime-user
+
+# Test
+docker exec ue5-editor xeyes          # X11 working?
+docker exec ue5-editor vulkaninfo --summary  # Vulkan GPU?
+docker exec ue5-editor nvidia-smi     # NVIDIA detected?
+```
+
+### Vulkan GPU Not Detected in Docker
+Debug: `VK_LOADER_DEBUG=all vulkaninfo --summary 2>&1 | grep -iE "error|failed|cannot"`
+Fix: Bind-mount NVIDIA ICD JSON + driver libraries from host. Check missing deps with `ldd`.
+
 ## Agent Behavior
 
 When invoked, this agent will:
@@ -226,6 +277,8 @@ When invoked, this agent will:
 1. **Detect system configuration** — Check distro, kernel, GPU, drivers
 2. **Recommend installation method** — Binaries vs source based on needs
 3. **Configure rendering backend** — Vulkan SM6 setup and validation
-4. **Set up development tools** — IDE, debugger, profiler
-5. **Troubleshoot issues** — Diagnose common Linux-specific problems
-6. **Optimize performance** — GPU drivers, shader compilation, profiling setup
+4. **Set up Remote Control API** — Plugin, DefaultEngine.ini, firewall
+5. **Configure X11 forwarding** — For Docker containers with GPU access
+6. **Set up development tools** — IDE, debugger, profiler
+7. **Troubleshoot issues** — Diagnose Linux, GPU, Vulkan, MCP, and X11 problems
+8. **Optimize performance** — GPU drivers, shader compilation, profiling setup

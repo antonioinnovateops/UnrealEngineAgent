@@ -112,6 +112,8 @@ export function registerLearningTools(server: McpServer) {
             "docker",
             "linux",
             "claude-integration",
+            "mcp-servers",
+            "remote-control",
           ])
           .describe("Topic to build a learning path for"),
       },
@@ -366,6 +368,59 @@ export function registerLearningTools(server: McpServer) {
 12. Mixing C++ and Blueprints effectively
 13. Creating Blueprint-callable C++ functions
 14. BlueprintImplementableEvents for designer customization`,
+
+        "mcp-servers": `## Learning Path: UE5 MCP Servers
+
+### Step 1: Understand the Landscape
+1. Three production MCP implementations exist:
+   - **Official** (Remote Control API) — HTTP/WS, port 6766/6767, TypeScript
+   - **ChiR24** (Automation Bridge) — TCP, port 8091, C++ plugin
+   - **Flopperam** (World Building) — TCP, port 6776, Python
+2. Use \`ue5_mcp_architecture_guide\` tool for detailed comparison
+
+### Step 2: Start with Official MCP (Week 1)
+3. Enable Remote Control Plugin in UE5 Editor
+4. Configure DefaultEngine.ini with auto-start
+5. Pull Docker image: \`docker pull mcp/unreal-engine-mcp-server:latest\`
+6. Test connectivity: \`curl http://localhost:6766/remote/api/v1/objects\`
+
+### Step 3: Docker Integration (Week 2)
+7. Create Docker Compose with UE5 editor + MCP server
+8. Configure Claude Code .mcp.json for Docker-based MCP
+9. Test MCP tools: spawn_actor, create_material, create_blueprint
+
+### Step 4: Advanced
+10. Try ChiR24 Automation Bridge for performance-critical workflows
+11. Try Flopperam for AI-driven world building
+12. Set up security: private Docker networks, read-only volumes, firewall rules
+13. All three can coexist in the same Docker Compose stack`,
+
+        "remote-control": `## Learning Path: UE5 Remote Control API
+
+### Step 1: Fundamentals
+1. Read official docs: "Remote Control API for Unreal Engine"
+2. Enable plugin: Edit → Plugins → Remote Control API
+3. Understand HTTP (port 6766) vs WebSocket (port 6767) protocols
+
+### Step 2: Configuration
+4. Add to DefaultEngine.ini:
+   \`\`\`ini
+   [/Script/RemoteControlAPI.RemoteControlSettings]
+   bAutoStartRemoteControl=True
+   RemoteControlHttpServerPort=6766
+   RemoteControlWebSocketServerPort=6767
+   \`\`\`
+5. Verify: \`curl http://localhost:6766/remote/api/v1/objects\`
+
+### Step 3: Using with MCP
+6. Connect MCP server to Remote Control endpoints
+7. Available tool categories: Actors, Materials, Blueprints, Gameplay, Level, VFX, Animation, AI, Assets
+8. Use \`ue5_mcp_tools_reference\` for full tool list
+
+### Step 4: Docker Deployment
+9. Run MCP server in Docker with env vars (UE_HOST, UE_RC_HTTP_PORT)
+10. Configure Docker networking (bridge or host mode)
+11. Security: MCP_AUTOMATION_ALLOW_NON_LOOPBACK=false, UFW firewall rules`,
       };
 
       const path = paths[topic];
