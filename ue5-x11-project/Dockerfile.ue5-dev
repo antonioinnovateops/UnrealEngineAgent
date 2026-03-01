@@ -51,12 +51,18 @@ RUN npm install && npm run build && \
 COPY .claude/ /home/ue5dev/.claude/
 RUN chown -R ue5dev:ue5dev /home/ue5dev/.claude
 
+# Create directories that will be mounted as volumes (sets correct ownership)
+RUN mkdir -p /home/ue5dev/.cache /home/ue5dev/UnrealEngine /home/ue5dev/Projects && \
+    chown -R ue5dev:ue5dev /home/ue5dev
+
 # Environment setup
 USER ue5dev
 WORKDIR /home/ue5dev
 
 # UE5 environment variables
 ENV DISPLAY=:1
+ENV XDG_RUNTIME_DIR=/tmp/runtime-ue5dev
+RUN mkdir -p /tmp/runtime-ue5dev && chmod 700 /tmp/runtime-ue5dev
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 ENV UE5_MCP_SERVER=/opt/ue5-mcp-server/dist/index.js
 

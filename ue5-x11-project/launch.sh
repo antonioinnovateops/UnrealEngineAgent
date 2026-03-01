@@ -92,6 +92,16 @@ export_env() {
     export DISPLAY="${DISPLAY}"
     export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"
     export USER="${USER}"
+
+    # Auto-detect NVIDIA driver version for Vulkan library bind-mounts
+    NVIDIA_DRIVER_VERSION=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1 || true)
+    if [ -n "$NVIDIA_DRIVER_VERSION" ]; then
+        export NVIDIA_DRIVER_VERSION
+        ok "NVIDIA driver: $NVIDIA_DRIVER_VERSION"
+    else
+        warn "Could not detect NVIDIA driver version - Vulkan GPU support may not work"
+        export NVIDIA_DRIVER_VERSION="000.00.00"
+    fi
 }
 
 # Auto-detect docker compose command

@@ -21,6 +21,7 @@ services:
       - XAUTHORITY=/tmp/.Xauthority
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
+      - XDG_RUNTIME_DIR=/tmp/runtime-ue5dev
       - PULSE_SERVER=unix:/run/user/${HOST_UID:-1000}/pulse/native
 
     volumes:
@@ -30,14 +31,25 @@ services:
       - ${XAUTHORITY:-/home/${USER}/.Xauthority}:/tmp/.Xauthority:ro
       # GPU device access
       - /dev/dri:/dev/dri
+      # NVIDIA Vulkan ICD (bind-mount from host so Vulkan finds the GPU)
+      - /usr/share/vulkan/icd.d/nvidia_icd.json:/usr/share/vulkan/icd.d/nvidia_icd.json:ro
+      - /usr/share/vulkan/implicit_layer.d:/usr/share/vulkan/implicit_layer.d:ro
+      # NVIDIA driver libraries from host for Vulkan + OpenGL
+      - /usr/lib/x86_64-linux-gnu/libGLX_nvidia.so.0:/usr/lib/x86_64-linux-gnu/libGLX_nvidia.so.0:ro
+      - /usr/lib/x86_64-linux-gnu/libGLX_nvidia.so.${NVIDIA_DRIVER_VERSION}:/usr/lib/x86_64-linux-gnu/libGLX_nvidia.so.${NVIDIA_DRIVER_VERSION}:ro
+      - /usr/lib/x86_64-linux-gnu/libEGL_nvidia.so.0:/usr/lib/x86_64-linux-gnu/libEGL_nvidia.so.0:ro
+      - /usr/lib/x86_64-linux-gnu/libEGL_nvidia.so.${NVIDIA_DRIVER_VERSION}:/usr/lib/x86_64-linux-gnu/libEGL_nvidia.so.${NVIDIA_DRIVER_VERSION}:ro
+      - /usr/lib/x86_64-linux-gnu/libnvidia-glcore.so.${NVIDIA_DRIVER_VERSION}:/usr/lib/x86_64-linux-gnu/libnvidia-glcore.so.${NVIDIA_DRIVER_VERSION}:ro
+      - /usr/lib/x86_64-linux-gnu/libnvidia-glvkspirv.so.${NVIDIA_DRIVER_VERSION}:/usr/lib/x86_64-linux-gnu/libnvidia-glvkspirv.so.${NVIDIA_DRIVER_VERSION}:ro
+      - /usr/lib/x86_64-linux-gnu/libnvidia-gpucomp.so.${NVIDIA_DRIVER_VERSION}:/usr/lib/x86_64-linux-gnu/libnvidia-gpucomp.so.${NVIDIA_DRIVER_VERSION}:ro
+      - /usr/lib/x86_64-linux-gnu/libnvidia-glsi.so.${NVIDIA_DRIVER_VERSION}:/usr/lib/x86_64-linux-gnu/libnvidia-glsi.so.${NVIDIA_DRIVER_VERSION}:ro
+      - /usr/lib/x86_64-linux-gnu/libnvidia-tls.so.${NVIDIA_DRIVER_VERSION}:/usr/lib/x86_64-linux-gnu/libnvidia-tls.so.${NVIDIA_DRIVER_VERSION}:ro
       # PulseAudio for sound
       - /run/user/${HOST_UID:-1000}/pulse:/run/user/${HOST_UID:-1000}/pulse:ro
       # Persist UE5 engine installation across container restarts
       - ue5-engine:/home/ue5dev/UnrealEngine
       # Project workspace
       - ue5-workspace:/home/ue5dev/Projects
-      # Shared downloads cache
-      - ue5-cache:/home/ue5dev/.cache
 
     deploy:
       resources:
@@ -71,8 +83,6 @@ volumes:
     name: ue5-engine-data
   ue5-workspace:
     name: ue5-workspace
-  ue5-cache:
-    name: ue5-dev-cache
 
 networks:
   ue5-net:
