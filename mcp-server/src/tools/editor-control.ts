@@ -193,7 +193,7 @@ export function registerEditorControlTools(server: McpServer) {
     {
       title: "Spawn Actor in UE5 Editor",
       description:
-        "Spawn an actor in the current level. Optionally set mesh (Cube/Sphere/Cylinder/Cone/Plane or full path), label, location, rotation, and scale. Returns the spawned actor path.",
+        "Spawn an actor in the current level. Optionally set mesh (Cube/Sphere/Cylinder/Cone/Plane or full path), label, location, rotation, scale, and physics simulation. Returns the spawned actor path.",
       inputSchema: {
         actor_class: z
           .string()
@@ -211,6 +211,10 @@ export function registerEditorControlTools(server: McpServer) {
         location: LocationSchema,
         rotation: RotationSchema,
         scale: ScaleSchema,
+        simulate_physics: z
+          .boolean()
+          .default(false)
+          .describe("Enable physics simulation (sets Mobility to Movable, enables gravity)"),
       },
       annotations: {
         readOnlyHint: false,
@@ -219,7 +223,7 @@ export function registerEditorControlTools(server: McpServer) {
         openWorldHint: true,
       },
     },
-    async ({ actor_class, mesh, label, location, rotation, scale }) => {
+    async ({ actor_class, mesh, label, location, rotation, scale, simulate_physics }) => {
       try {
         // Resolve actor class
         const classPath = ACTOR_CLASSES[actor_class] || actor_class;
@@ -250,9 +254,8 @@ export function registerEditorControlTools(server: McpServer) {
         // Step 2: Set mesh if specified
         if (mesh) {
           const meshPath = ENGINE_MESHES[mesh] || mesh;
-          // Find the static mesh component
           const meshComp = `${actorPath}.StaticMeshComponent0`;
-          const meshRes = await rcProperty(meshComp, "StaticMesh", meshPath);
+          const meshRes = await rcCall(meshComp, "SetStaticMesh", { NewMesh: meshPath });
           if (meshRes.ok) {
             steps.push(`Set mesh: ${meshPath}`);
           } else {
@@ -260,7 +263,30 @@ export function registerEditorControlTools(server: McpServer) {
           }
         }
 
-        // Step 3: Set label
+        // Step 3: Enable physics (must set Movable before SetSimulatePhysics)
+        if (simulate_physics) {
+          const meshComp = `${actorPath}.StaticMeshComponent0`;
+          const mobRes = await rcCall(meshComp, "SetMobility", { NewMobility: "Movable" });
+          if (mobRes.ok) {
+            steps.push("Set mobility: Movable");
+          } else {
+            steps.push(`Warning: Failed to set mobility (${mobRes.status})`);
+          }
+          const physRes = await rcCall(meshComp, "SetSimulatePhysics", { bSimulate: true });
+          if (physRes.ok) {
+            steps.push("Enabled physics simulation");
+          } else {
+            steps.push(`Warning: Failed to enable physics (${physRes.status})`);
+          }
+          const gravRes = await rcCall(meshComp, "SetEnableGravity", { bGravityEnabled: true });
+          if (gravRes.ok) {
+            steps.push("Enabled gravity");
+          } else {
+            steps.push(`Warning: Failed to enable gravity (${gravRes.status})`);
+          }
+        }
+
+        // Step 4: Set label
         if (label) {
           const labelRes = await rcCall(actorPath, "SetActorLabel", { NewActorLabel: label });
           if (labelRes.ok) {
@@ -270,7 +296,7 @@ export function registerEditorControlTools(server: McpServer) {
           }
         }
 
-        // Step 4: Set rotation
+        // Step 5: Set rotation
         if (rotation) {
           const rotRes = await rcCall(actorPath, "K2_SetActorRotation", {
             NewRotation: { Pitch: rotation.pitch, Yaw: rotation.yaw, Roll: rotation.roll },
@@ -283,7 +309,7 @@ export function registerEditorControlTools(server: McpServer) {
           }
         }
 
-        // Step 5: Set scale
+        // Step 6: Set scale
         if (scale) {
           const scaleRes = await rcCall(actorPath, "SetActorScale3D", {
             NewScale3D: { X: scale.x, Y: scale.y, Z: scale.z },
