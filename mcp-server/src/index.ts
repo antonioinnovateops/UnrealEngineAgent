@@ -5,6 +5,7 @@ import { registerProjectTools } from "./tools/project.js";
 import { registerLearningTools } from "./tools/learning.js";
 import { registerCppTools } from "./tools/cpp.js";
 import { registerRemoteControlTools } from "./tools/remote-control.js";
+import { registerEditorControlTools } from "./tools/editor-control.js";
 
 const server = new McpServer({
   name: "ue5-mcp-server",
@@ -17,6 +18,7 @@ registerProjectTools(server);
 registerLearningTools(server);
 registerCppTools(server);
 registerRemoteControlTools(server);
+registerEditorControlTools(server);
 
 // Start server with stdio transport
 async function main() {
