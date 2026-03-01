@@ -230,7 +230,7 @@ export function registerEditorControlTools(server: McpServer) {
 
         // Step 1: Spawn actor via EditorActorSubsystem
         const spawnRes = await rcCall(
-          "/Engine/Transient.EditorActorSubsystem",
+          "/Script/UnrealEd.Default__EditorActorSubsystem",
           "SpawnActorFromClass",
           {
             ActorClass: classPath,
@@ -360,7 +360,7 @@ export function registerEditorControlTools(server: McpServer) {
     async ({ class_filter, limit }) => {
       try {
         const res = await rcCall(
-          "/Engine/Transient.EditorActorSubsystem",
+          "/Script/UnrealEd.Default__EditorActorSubsystem",
           "GetAllLevelActors"
         );
 
@@ -411,7 +411,7 @@ export function registerEditorControlTools(server: McpServer) {
     async ({ actor_path }) => {
       try {
         const res = await rcCall(
-          "/Engine/Transient.EditorActorSubsystem",
+          "/Script/UnrealEd.Default__EditorActorSubsystem",
           "DestroyActor",
           { ActorToDestroy: actor_path }
         );
@@ -967,7 +967,7 @@ export function registerEditorControlTools(server: McpServer) {
           "/Script/Engine.Default__KismetSystemLibrary",
           "ExecuteConsoleCommand",
           {
-            WorldContextObject: "/Engine/Transient.EditorActorSubsystem",
+            WorldContextObject: "/Script/UnrealEd.Default__EditorActorSubsystem",
             Command: command,
           }
         );
@@ -1141,7 +1141,7 @@ export function registerEditorControlTools(server: McpServer) {
 
         // Spawn the light
         const spawnRes = await rcCall(
-          "/Engine/Transient.EditorActorSubsystem",
+          "/Script/UnrealEd.Default__EditorActorSubsystem",
           "SpawnActorFromClass",
           {
             ActorClass: classPath,
